@@ -1,0 +1,33 @@
+---
+- name: Install Docker Compose Globally
+  hosts: all
+  become: true
+  tasks:
+    - name: Ensure curl is installed
+      package:
+        name: curl
+        state: present
+
+    - name: Get latest Docker Compose release version
+      shell: |
+        curl -s https://api.github.com/repos/docker/compose/releases/latest \
+        | grep '"tag_name":' \
+        | sed -E 's/.*"([^"]+)".*/\1/'
+      register: compose_version
+      changed_when: false
+
+    - name: Download Docker Compose binary
+      get_url:
+        url: "https://github.com/docker/compose/releases/download/{{ compose_version.stdout }}/docker-compose-{{ ansible_system | lower }}-{{ ansible_architecture }}"
+        dest: /usr/local/bin/docker-compose
+        mode: '0755'
+        force: true
+
+    - name: Verify Docker Compose installation
+      command: docker-compose --version
+      register: compose_check
+      changed_when: false
+
+    - name: Show installed Docker Compose version
+      debug:
+        msg: "Installed Docker Compose version: {{ compose_check.stdout }}"
