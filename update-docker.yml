@@ -1,0 +1,77 @@
+---
+- name: Install Docker CE on RHEL 8
+  hosts: localhost
+  become: true
+
+  tasks:
+
+    - name: Stop all current running containers
+      ansible.builtin.shell:
+        cmd: docker stop $(docker ps -qa)
+    
+    - name: Remove old Docker CE if installed
+      ansible.builtin.dnf:
+        name: 
+          - docker-ce
+          - podman
+          - runc
+        state: absent
+
+    - name: Install dnf-plugins-core (required for managing repos)
+      ansible.builtin.dnf:
+        name: dnf-plugins-core
+        state: present
+
+    - name: Add Docker CE repository using yum_repository module
+      ansible.builtin.yum_repository:
+        name: docker-ce-stable
+        description: Docker CE Stable Repository
+        baseurl: https://download.docker.com/linux/rhel/8/x86_64/stable
+        enabled: true
+        gpgcheck: true
+        gpgkey: https://download.docker.com/linux/rhel/gpg
+
+    # - name: Remove container-related directories and files
+    #   ansible.builtin.file:
+    #     path: "{{ item }}"
+    #     state: absent
+    #     force: true
+    #   loop:
+    #     - /etc/containers
+    #     - /var/lib/containers
+    #     - /etc/docker
+    #     - /etc/subuid
+    #     - /etc/subuid-
+    #     - /etc/subgid
+    #     - /etc/subgid-
+
+    - name: Install Docker CE and related packages
+      ansible.builtin.dnf:
+        name:
+          - docker-ce
+          - docker-ce-cli
+          - containerd.io
+        state: present
+
+    - name: Enable and start Docker service
+      ansible.builtin.systemd:
+        name: docker
+        enabled: true
+        state: started
+
+    - name: Set ownership of /var/run/docker to root:docker
+      ansible.builtin.file:
+        path: /var/run/docker
+        owner: root
+        group: docker
+        recurse: false
+        state: directory
+
+    - name: Display Docker version
+      ansible.builtin.command: docker --version
+      register: docker_version_output
+      changed_when: false
+
+    - name: Show Docker version output
+      ansible.builtin.debug:
+        var: docker_version_output.stdout
