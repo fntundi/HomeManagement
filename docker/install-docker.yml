@@ -1,0 +1,152 @@
+---
+- name: Install Docker & Docker Compose (Ubuntu 20.04 and RHEL 8)
+  hosts: all
+  become: true
+  gather_facts: true
+
+  vars:
+    ubuntu_required_packages:
+      - ca-certificates
+      - curl
+      - gnupg
+      - lsb-release
+    rhel_required_packages:
+      - yum-utils
+    docker_packages_common:
+      - docker-ce
+      - docker-ce-cli
+      - containerd.io
+      - docker-buildx-plugin
+      - docker-compose-plugin
+
+  tasks:
+    ####################################################################
+    # OS-SPECIFIC: Pre-reqs + Docker repo
+    ####################################################################
+    - name: Ensure prerequisites (Ubuntu)
+      apt:
+        name: "{{ ubuntu_required_packages }}"
+        state: present
+        update_cache: true
+      when:
+        - ansible_facts['os_family'] == 'Debian'
+        - ansible_facts['distribution'] == 'Ubuntu'
+        - ansible_facts['distribution_major_version'] == '20'
+
+    - name: Add Docker GPG key (Ubuntu)
+      apt_key:
+        url: https://download.docker.com/linux/ubuntu/gpg
+        state: present
+      when:
+        - ansible_facts['os_family'] == 'Debian'
+        - ansible_facts['distribution'] == 'Ubuntu'
+        - ansible_facts['distribution_major_version'] == '20'
+
+    - name: Add Docker apt repository (Ubuntu)
+      apt_repository:
+        repo: "deb [arch={{ 'arm64' if ansible_architecture in ['aarch64', 'arm64'] else 'amd64' }}] https://download.docker.com/linux/ubuntu {{ ansible_facts['distribution_release'] | default('focal') }} stable"
+        state: present
+        filename: docker
+      when:
+        - ansible_facts['os_family'] == 'Debian'
+        - ansible_facts['distribution'] == 'Ubuntu'
+        - ansible_facts['distribution_major_version'] == '20'
+
+    - name: Ensure prerequisites (RHEL 8)
+      package:
+        name: "{{ rhel_required_packages }}"
+        state: present
+      when:
+        - ansible_facts['os_family'] == 'RedHat'
+        - ansible_facts['distribution_major_version'] == '8'
+
+    - name: Add Docker yum repository (RHEL 8)
+      get_url:
+        url: https://download.docker.com/linux/rhel/docker-ce.repo
+        dest: /etc/yum.repos.d/docker-ce.repo
+        mode: '0644'
+      when:
+        - ansible_facts['os_family'] == 'RedHat'
+        - ansible_facts['distribution_major_version'] == '8'
+
+    ####################################################################
+    # Install Docker Engine + Compose plugin
+    ####################################################################
+    - name: Install Docker packages (Ubuntu)
+      apt:
+        name: "{{ docker_packages_common }}"
+        state: present
+        update_cache: true
+      when:
+        - ansible_facts['os_family'] == 'Debian'
+        - ansible_facts['distribution'] == 'Ubuntu'
+        - ansible_facts['distribution_major_version'] == '20'
+
+    - name: Install Docker packages (RHEL 8)
+      dnf:
+        name: "{{ docker_packages_common }}"
+        state: present
+      when:
+        - ansible_facts['os_family'] == 'RedHat'
+        - ansible_facts['distribution_major_version'] == '8'
+
+    - name: Enable and start Docker
+      service:
+        name: docker
+        enabled: true
+        state: started
+
+    ####################################################################
+    # Provide a global "docker-compose" shim for compatibility
+    ####################################################################
+    - name: Check Ubuntu-style compose plugin path
+      stat:
+        path: /usr/lib/docker/cli-plugins/docker-compose
+      register: compose_plugin_ubuntu
+
+    - name: Check RHEL-style compose plugin path
+      stat:
+        path: /usr/libexec/docker/cli-plugins/docker-compose
+      register: compose_plugin_rhel
+
+    - name: Set compose_plugin_path fact
+      set_fact:
+        compose_plugin_path: >-
+          {{ '/usr/lib/docker/cli-plugins/docker-compose'
+             if compose_plugin_ubuntu.stat.exists else
+             ('/usr/libexec/docker/cli-plugins/docker-compose'
+              if compose_plugin_rhel.stat.exists else '') }}
+
+    - name: Create /usr/local/bin directory (if missing)
+      file:
+        path: /usr/local/bin
+        state: directory
+        mode: '0755'
+
+    - name: Create docker-compose symlink to plugin (if found)
+      file:
+        src: "{{ compose_plugin_path }}"
+        dest: /usr/local/bin/docker-compose
+        state: link
+        force: true
+      when: compose_plugin_path | length > 0
+
+    ####################################################################
+    # Validation
+    ####################################################################
+    - name: Check "docker compose version"
+      command: docker compose version
+      register: compose_plugin_ver
+      changed_when: false
+
+    - name: Check "docker-compose version" (shim)
+      command: docker-compose version
+      register: compose_shim_ver
+      changed_when: false
+      failed_when: false
+
+    - name: Show installed compose versions
+      debug:
+        msg:
+          - "docker compose: {{ compose_plugin_ver.stdout | default('N/A') }}"
+          - "docker-compose (shim): {{ compose_shim_ver.stdout | default('N/A') }}"
