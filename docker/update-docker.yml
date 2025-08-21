@@ -1,0 +1,103 @@
+---
+- name: Install Docker CE on RHEL 8 or Ubuntu 20.04
+  hosts: localhost
+  become: true
+
+  tasks:
+    - name: Stop all running containers
+      ansible.builtin.shell:
+        cmd: docker stop $(docker ps -qa)
+      ignore_errors: true  # Continue if no containers are running
+
+    - name: Remove old Docker packages on RHEL
+      ansible.builtin.dnf:
+        name:
+          - docker
+          - docker-client
+          - docker-client-latest
+          - docker-common
+          - docker-latest
+          - docker-latest-logrotate
+          - docker-logrotate
+          - docker-engine
+          - podman
+          - runc
+        state: absent
+      when: ansible_os_family == "RedHat"
+
+    - name: Remove old Docker packages on Ubuntu
+      ansible.builtin.apt:
+        name:
+          - docker
+          - docker-engine
+          - docker.io
+          - containerd
+          - runc
+        state: absent
+      when: ansible_os_family == "Debian"
+
+    - name: Install required packages for Docker on RHEL
+      ansible.builtin.dnf:
+        name:
+          - dnf-plugins-core
+        state: present
+      when: ansible_os_family == "RedHat"
+
+    - name: Install required packages for Docker on Ubuntu
+      ansible.builtin.apt:
+        name:
+          - apt-transport-https
+          - ca-certificates
+          - curl
+          - gnupg
+          - lsb-release
+        state: present
+        update_cache: yes
+      when: ansible_os_family == "Debian"
+
+    - name: Add Docker CE repository on RHEL
+      ansible.builtin.yum_repository:
+        name: docker-ce-stable
+        description: Docker CE Stable Repository
+        baseurl: https://download.docker.com/linux/centos/8/x86_64/stable
+        enabled: true
+        gpgcheck: true
+        gpgkey: https://download.docker.com/linux/centos/gpg
+      when: ansible_os_family == "RedHat"
+
+    - name: Add Docker CE GPG key on Ubuntu
+      ansible.builtin.apt_key:
+        url: https://download.docker.com/linux/ubuntu/gpg
+        state: present
+      when: ansible_os_family == "Debian"
+
+    - name: Add Docker CE repository on Ubuntu
+      ansible.builtin.apt_repository:
+        repo: deb [arch=amd64] https://download.docker.com/linux/ubuntu {{ ansible_lsb.codename }} stable
+        state: present
+        update_cache: yes
+      when: ansible_os_family == "Debian"
+
+    - name: Install Docker CE on RHEL
+      ansible.builtin.dnf:
+        name:
+          - docker-ce
+          - docker-ce-cli
+          - containerd.io
+        state: present
+      when: ansible_os_family == "RedHat"
+
+    - name: Install Docker CE on Ubuntu
+      ansible.builtin.apt:
+        name:
+          - docker-ce
+          - docker-ce-cli
+          - containerd.io
+        state: present
+      when: ansible_os_family == "Debian"
+
+    - name: Ensure Docker service is started and enabled
+      ansible.builtin.service:
+        name: docker
+        state: started
+        enabled: true
