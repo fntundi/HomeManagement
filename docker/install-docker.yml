@@ -1,6 +1,6 @@
 ---
 - name: Install Docker & Docker Compose (Ubuntu 20.04 and RHEL 8)
-  hosts: all
+  hosts: localhost
   become: true
   gather_facts: true
 

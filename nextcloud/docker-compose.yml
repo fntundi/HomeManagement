@@ -1,9 +1,12 @@
 #version: '3.8'
+
 services:
+
   nextcloud:
     image: nextcloud:latest
     container_name: nextcloud
     restart: always
+    network_mode: "host"
     ports:
       - "8080:80"
     environment:
@@ -20,13 +23,14 @@ services:
     depends_on:
       - db
       - redis
-    networks:
-      - nextcloud_network
+        #    networks:
+        #      - nextcloud_network
 
   db:
     image: mariadb:latest
     container_name: nextcloud_db
     restart: always
+    network_mode: "host"
     environment:
       - MYSQL_ROOT_PASSWORD=root_password
       - MYSQL_DATABASE=nextcloud
@@ -34,16 +38,17 @@ services:
       - MYSQL_PASSWORD=nextcloud_password
     volumes:
       - ./db_data:/var/lib/mysql
-    networks:
-      - nextcloud_network
+        #    networks:
+        #      - nextcloud_network
 
   redis:
     image: redis:latest
     container_name: nextcloud_redis
     restart: always
-    networks:
-      - nextcloud_network
+    network_mode: "host"
+    #    networks:
+            #      - nextcloud_network
 
-networks:
-  nextcloud_network:
-    driver: bridge
+        #networks:
+        #  nextcloud_network:
+        #    driver: bridge
