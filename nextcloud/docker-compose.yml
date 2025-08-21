@@ -8,14 +8,14 @@ services:
     ports:
       - "8080:80"
     environment:
-      - MYSQL_HOST=db
+      - MYSQL_HOST="db:3306"
       - MYSQL_DATABASE=nextcloud
       - MYSQL_USER=nextcloud
-      - MYSQL_PASSWORD=4mrZQ+31dua3CHQ!
-      - REDIS_HOST=redis
+      - MYSQL_PASSWORD="4mrZQ+31dua3CHQ!"
+      - REDIS_HOST="redis:6379"
       - NEXTCLOUD_ADMIN_USER=bchan
-      - NEXTCLOUD_ADMIN_PASSWORD=4mrZQ+31dua3CHQ!
-      - NEXTCLOUD_TRUSTED_DOMAINS=localhost 127.0.0.1 192.168.3.24 blackiecloud.me
+      - NEXTCLOUD_ADMIN_PASSWORD="4mrZQ+31dua3CHQ!"
+      - NEXTCLOUD_TRUSTED_DOMAINS="localhost 127.0.0.1 192.168.3.24 blackiecloud.me"
     volumes:
       - ./nextcloud_data:/var/www/html
     depends_on:
@@ -27,14 +27,18 @@ services:
     container_name: nextcloud_db
     restart: always
     environment:
-      - MYSQL_ROOT_PASSWORD=4mrZ#Q+31duaK3CHQ!
+      - MYSQL_ROOT_PASSWORD="4mrZ#Q+31duaK3CHQ!"
       - MYSQL_DATABASE=nextcloud
       - MYSQL_USER=nextcloud
-      - MYSQL_PASSWORD=4mrZQ+31dua3CHQ!
+      - MYSQL_PASSWORD="4mrZQ+31dua3CHQ!"
     volumes:
       - ./db_data:/var/lib/mysql
+    ports:
+      - "3306:3306"
 
   redis:
     image: redis:latest
     container_name: nextcloud_redis
     restart: always
+    ports:
+      - "6379:6379"
